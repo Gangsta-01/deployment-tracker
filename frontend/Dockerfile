@@ -1,32 +1,23 @@
-# ── Stage 1: Build ──────────────────────────────────────────────
+# ---------- Build Stage ----------
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies first (layer cache)
-COPY package.json ./
-RUN npm install --frozen-lockfile
+COPY package*.json ./
 
-# Copy source and build
-COPY public/ ./public/
-COPY src/    ./src/
+RUN npm ci
+
+COPY . .
+
 RUN npm run build
 
-# ── Stage 2: Serve ──────────────────────────────────────────────
+# ---------- Runtime Stage ----------
 FROM nginx:1.25-alpine
 
-# Copy built assets
-COPY --from=builder /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Nginx config to support React Router (SPA fallback)
-RUN echo 'server { \
-  listen 80; \
-  root /usr/share/nginx/html; \
-  index index.html; \
-  location / { try_files $uri $uri/ /index.html; } \
-  location /api/ { proxy_pass http://backend:5000; } \
-}' > /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/build /usr/share/nginx/html
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["nginx","-g","daemon off;"]
