@@ -1,0 +1,65 @@
+pipeline {
+
+    agent any
+    environment {
+        DOCKER_USERNAME = 'vaibhavk00'
+        IMAGE_FE = 'deploy-track-fe'
+        IMAGE_BE = 'deploy-track-be'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Backend') {
+            steps {
+                dir('backend') {
+                    sh '''
+                    docker build -t $DOCKER_USERNAME/$IMAGE_BE:${BUILD_NUMBER} .
+                    docker tag $DOCKER_USERNAME/$IMAGE_BE:${BUILD_NUMBER} $DOCKER_USERNAME/$IMAGE_BE:latest
+                    '''
+                }
+            }
+        }
+
+        stage('Build Frontend') {
+            steps {
+                dir('frontend') {
+                    sh '''
+                    docker build -t $DOCKER_USERNAME/$IMAGE_FE:${BUILD_NUMBER} .
+                    docker tag $DOCKER_USERNAME/$IMAGE_FE:${BUILD_NUMBER} $DOCKER_USERNAME/$IMAGE_FE:latest
+                    '''
+                }
+            }
+        }
+
+        stage('Push Images') {
+            steps {
+                sh '''
+                docker push $DOCKER_USERNAME/$IMAGE_BE:${BUILD_NUMBER}
+                docker push $DOCKER_USERNAME/$IMAGE_BE:latest
+
+                docker push $DOCKER_USERNAME/$IMAGE_FE:${BUILD_NUMBER}
+                docker push $DOCKER_USERNAME/$IMAGE_FE:latest
+                '''
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sshagent(['ubuntu-server']) {
+                    sh '''
+                    ssh ubuntu@10.0.0.133 "
+                    cd /jenkins/deploy-tracker
+                    docker compose pull
+                    docker compose up -d
+                    "
+                    '''
+                }
+            }
+        }
+    }
+}
